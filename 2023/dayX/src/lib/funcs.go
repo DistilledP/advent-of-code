@@ -9,3 +9,13 @@ func Part01() {
 func Part02() {
 	log.Println("TODO")
 }
+
+
+func debugLog(items ...any) {
+	if os.Getenv("DEBUG") == "1" {
+		log.Println(items...)
+	}
+}
+
+
+
