@@ -1,9 +1,19 @@
 package main
 
 import (
+	"log"
+	"os"
+
 	"github.com/DistilledP/advent-of-code/src/lib"
 )
 
 func main() {
-	lib.Part01()
+	content, err := os.ReadFile("./input/input")
+	if err != nil {
+		log.Fatalf("failed to read input: %s", err)
+	}
+
+	result := lib.Part01(string(content))
+
+	log.Printf("the result: %d\n", result)
 }

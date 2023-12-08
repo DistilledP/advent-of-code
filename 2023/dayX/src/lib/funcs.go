@@ -5,12 +5,16 @@ import (
 	"os"
 )
 
-func Part01() {
+func Part01(content string) int {
 	log.Println("TODO")
+
+	return 0
 }
 
-func Part02() {
+func Part02(content string) int {
 	log.Println("TODO")
+
+	return 0
 }
 
 func debugLog(items ...any) {
