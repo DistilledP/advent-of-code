@@ -37,7 +37,7 @@ humidity-to-location map:
 56 93 4`
 
 func TestPart01(t *testing.T) {
-	expect := 35
+	expect := uint64(35)
 	actual := Part01(TestData)
 
 	if expect != actual {
@@ -46,8 +46,17 @@ func TestPart01(t *testing.T) {
 }
 
 func TestPart02(t *testing.T) {
-	expect := 46
+	expect := uint64(46)
 	actual := Part02(TestData)
+
+	if expect != actual {
+		t.Fatalf("want %v, got %v", expect, actual)
+	}
+}
+
+func TestPart02_batch(t *testing.T) {
+	expect := uint64(46)
+	actual := Part02_batch(TestData)
 
 	if expect != actual {
 		t.Fatalf("want %v, got %v", expect, actual)

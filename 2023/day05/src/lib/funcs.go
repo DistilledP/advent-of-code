@@ -4,10 +4,12 @@ import (
 	"encoding/json"
 	"fmt"
 	"log"
+	"math"
 	"os"
 	"slices"
 	"strconv"
 	"strings"
+	"sync"
 )
 
 /**
@@ -57,14 +59,16 @@ Might as well start again :D
 
 Update: current solution should work, however due the amount of numbers involved it's slow.  Need to look at mapping ranges rather than numbers.
 
-Part01 done... now for part 2
+Part01 done.
+Part02 done.
+Part02 with batching done.
 */
 
 // Part01 answer: 324724204
-func Part01(content string) int {
+func Part01(content string) uint64 {
 	seeds, mapping2 := buildMap(content)
 
-	var locations []int
+	var lowest uint64 = math.MaxUint64
 	for i := 0; i < len(seeds); i++ {
 		needle := seeds[i]
 		for j := 0; j < len(mapping2); j++ {
@@ -72,65 +76,149 @@ func Part01(content string) int {
 			needle = resp[0]
 		}
 
-		locations = append(locations, needle)
+		if needle < lowest {
+			lowest = needle
+		}
 	}
 
-	return slices.Min(locations)
+	return lowest
 }
 
-func Part02(content string) int {
+// Part02 answer: 104070862
+func Part02(content string) uint64 {
+	seeds, mapping := buildMap(content)
+	numberOfSeeds := len(seeds) / 2
 
-	return 0
+	// brute force it.
+	var lowest uint64 = math.MaxUint64
+	for i := 0; i < len(seeds); i = i + 2 {
+		currentSeed := int(math.Round(float64((i+1)/2))) + 1
+		log.Printf("seed: %d/%d\tstart: %d\trange: %d\n", currentSeed, numberOfSeeds, seeds[i], seeds[i+1])
+		for j := seeds[i]; j < seeds[i]+seeds[i+1]; j++ {
+			needle := j
+			for k := 0; k < len(mapping); k++ {
+				resp := walkMap(mapping, k, needle)
+				needle = resp[0]
+			}
+
+			if needle < lowest {
+				lowest = needle
+			}
+		}
+	}
+
+	return lowest
+}
+
+// Explore go routines option, synch.Waitgroup to batch the seeds in order
+// to increase performance.
+// Need to benchmark vs sequential.
+func Part02_batch(content string) uint64 {
+	defer func() {
+		if err := recover(); err != nil {
+			log.Println("panic occurred:", err)
+		}
+	}()
+
+	seeds, mapping := buildMap(content)
+	numberOfSeeds := len(seeds) / 2
+
+	var seedLowest []uint64
+	var batchSize int = 1000
+
+	log.Println("batch size", batchSize)
+
+	wg := sync.WaitGroup{}
+	for i := 0; i < len(seeds); i = i + 2 {
+		currentSeed := int(math.Round(float64((i+1)/2))) + 1
+		log.Printf("seed: %d/%d\tstart: %d\trange: %d\n", currentSeed, numberOfSeeds, seeds[i], seeds[i+1])
+		var lowest uint64 = math.MaxUint64
+		var locs []uint64
+		for j := seeds[i]; j < seeds[i]+seeds[i+1]; j++ {
+			spinnerNextFrame()
+			needleOuter := j
+			rangeSize := seeds[i+1]
+
+			currBatchLen := batchSize
+			if currBatchLen > int(rangeSize) {
+				currBatchLen = int(rangeSize)
+			}
+
+			wg.Add(currBatchLen)
+			for offset := 0; offset < currBatchLen; offset++ {
+				go func(seed uint64) {
+					needle := seed
+					for k := 0; k < len(mapping); k++ {
+						resp := walkMap(mapping, k, needle)
+						needle = resp[0]
+					}
+
+					locs = append(locs, needle)
+					wg.Done()
+				}(needleOuter)
+
+				needleOuter++
+			}
+
+			wg.Wait()
+
+			lowestBatchLoc := slices.Min[[]uint64](locs)
+
+			if lowestBatchLoc > 0 && lowestBatchLoc < lowest {
+				lowest = lowestBatchLoc
+			}
+			locs = locs[:0]
+			j += uint64(currBatchLen)
+		}
+
+		seedLowest = append(seedLowest, lowest)
+	}
+
+	return slices.Min(seedLowest)
 }
 
 type Mapping struct {
-	Start       map[int]int
-	End         map[int]int
-	SourceStart int
-	SourceEnd   int
-	Length      int
+	Start       map[uint64]uint64
+	End         map[uint64]uint64
+	SourceStart uint64
+	SourceEnd   uint64
+	Length      uint64
 }
 
-func walkMap(builtMap [][]Mapping, idx, needle int) []int {
-	var response []int
+func walkMap(builtMap [][]Mapping, idx int, needle uint64) []uint64 {
+	var response []uint64
 
 	mapping := builtMap[idx]
-
 	for i := 0; i < len(mapping); i++ {
 		rangeMap := mapping[i]
 
 		if needle >= rangeMap.SourceStart && needle <= rangeMap.SourceEnd {
 			offset := needle - rangeMap.SourceStart
-			return []int{rangeMap.Start[rangeMap.SourceStart] + offset}
+			return []uint64{rangeMap.Start[rangeMap.SourceStart] + offset}
 		}
 	}
 
-	response = append(response, needle)
-
-	return response
+	return append(response, needle)
 }
 
-func buildMap(content string) ([]int, [][]Mapping) {
+func buildMap(content string) ([]uint64, [][]Mapping) {
 	blocks := strings.Split(content, "\n\n")
 
-	// var output [][]Mapping
 	output := make([][]Mapping, len(blocks))
 	for i := 0; i < len(blocks); i++ {
 		blockLines := strings.Split(blocks[i], "\n")
-
-		// debugLog(blockLines)
 
 		blockMapping := make([]Mapping, 0)
 		for j := 1; j < len(blockLines); j++ {
 			lineParts := strings.Split(blockLines[j], " ")
 
-			src := MustInt(lineParts[1])
-			dst := MustInt(lineParts[0])
-			rangeLength := MustInt(lineParts[2])
+			src := MustUInt64(lineParts[1])
+			dst := MustUInt64(lineParts[0])
+			rangeLength := MustUInt64(lineParts[2])
 
 			blockMapping = append(blockMapping, Mapping{
-				Start:       map[int]int{src: dst},
-				End:         map[int]int{src + rangeLength - 1: dst + rangeLength - 1},
+				Start:       map[uint64]uint64{src: dst},
+				End:         map[uint64]uint64{src + rangeLength - 1: dst + rangeLength - 1},
 				SourceStart: src,
 				SourceEnd:   src + rangeLength - 1,
 				Length:      rangeLength,
@@ -146,12 +234,12 @@ func buildMap(content string) ([]int, [][]Mapping) {
 	return processSeedBlock(blocks[0]), output
 }
 
-func processSeedBlock(block string) []int {
+func processSeedBlock(block string) []uint64 {
 	cleanBlock := strings.TrimPrefix(block, "seeds:")
 
-	seeds := []int{}
+	seeds := []uint64{}
 	for _, seed := range strings.Split(cleanBlock, " ") {
-		if num, err := strconv.Atoi(seed); err == nil {
+		if num, err := strconv.ParseUint(seed, 10, 64); err == nil {
 			seeds = append(seeds, num)
 		}
 	}
@@ -162,12 +250,12 @@ func processSeedBlock(block string) []int {
 // ================================================
 // Helper fuctions
 // ================================================
-func MustInt(target string) int {
-	if num, err := strconv.Atoi(target); err == nil {
+func MustUInt64(target string) uint64 {
+	if num, err := strconv.ParseUint(target, 10, 64); err == nil {
 		return num
 	}
 
-	return -1
+	return 0
 }
 
 func dumpAsJson(data interface{}, filename string) {
@@ -184,4 +272,19 @@ func debugLog(items ...any) {
 	if os.Getenv("DEBUG") == "1" {
 		log.Println(items...)
 	}
+}
+
+var spinnerFrames = []string{
+	"/", "─", "\\", "│",
+}
+var spinnerFrame int
+
+func spinnerNextFrame() {
+	if spinnerFrame >= len(spinnerFrames) {
+		spinnerFrame = 0
+	}
+
+	fmt.Printf("\033[1m\033[7m\r%s\r\033[0m", spinnerFrames[spinnerFrame])
+
+	spinnerFrame++
 }
