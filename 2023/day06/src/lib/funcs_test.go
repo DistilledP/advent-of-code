@@ -8,7 +8,7 @@ const TestData = `Time:      7  15   30
 Distance:  9  40  200`
 
 func TestPart01(t *testing.T) {
-	expect := 288
+	var expect uint64 = 288
 	actual := Part01(TestData)
 
 	if expect != actual {
@@ -17,8 +17,7 @@ func TestPart01(t *testing.T) {
 }
 
 func TestPart02(t *testing.T) {
-	t.Skip("Part02 is skipped")
-	expect := 33
+	var expect uint64 = 71503
 	actual := Part02(TestData)
 
 	if expect != actual {
@@ -27,9 +26,9 @@ func TestPart02(t *testing.T) {
 }
 
 type testCase struct {
-	held       int
-	raceLength int
-	expected   int
+	held       uint64
+	raceLength uint64
+	expected   uint64
 }
 
 func TestCalculateDistanceTravelled(t *testing.T) {
