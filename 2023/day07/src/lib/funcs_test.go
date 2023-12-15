@@ -18,8 +18,7 @@ func TestPart01(t *testing.T) {
 }
 
 func TestPart02(t *testing.T) {
-	t.Skip("Part02 is skipped")
-	expect := 33
+	expect := 5905
 	actual := Part02(TestData)
 
 	if expect != actual {

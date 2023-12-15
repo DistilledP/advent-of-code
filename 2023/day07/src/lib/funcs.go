@@ -5,66 +5,48 @@ import (
 	"fmt"
 	"log"
 	"os"
-	"regexp"
 	"slices"
 	"strconv"
 	"strings"
 )
 
+// Part01 answer: 250474325
 func Part01(content string) int {
-	games := parseContent(content)
-
-	// Sorting of the games is incorrect when using the full data set (it's the only thing that makes sense).
-	// Need to examine the hands in more detail to correct the sorting.
-	// Maybe build up a map of doubles, triples etc for each hand and use that to determine the order.
-	// Scoring the entire hand alone does not do what we need it to do (although the test passes).
-	slices.SortFunc[[]hand](games, func(a, b hand) int {
-		cardCountsA := countsOfCards(a.cards)
-		cardCountsB := countsOfCards(b.cards)
-
-		debugLog(cardCountsA, cardCountsB)
-
-		return a.cardsValue - b.cardsValue
-	})
-
-	debugLog(games)
+	games := parseContent(content, false)
+	slices.SortFunc[[]hand](games, cardSort)
 
 	return calculateWinnings(games)
 }
 
+// Part02 answer:
 func Part02(content string) int {
+	cardValues["J"] = 1
+	defer func() {
+		cardValues["J"] = 11
+	}()
 
-	return 0
+	games := parseContent(content, true)
+	slices.SortFunc[[]hand](games, cardSort)
+
+	return calculateWinnings(games)
 }
 
-var cardValues map[string]int = make(map[string]int, 15)
+var cardValues map[string]uint = make(map[string]uint, 15)
 
 func init() {
-	cardValues = map[string]int{
-		"1": 1,
-		"2": 2,
-		"3": 3,
-		"4": 4,
-		"5": 5,
-		"6": 6,
-		"7": 7,
-		"8": 8,
-		"9": 9,
-		"T": 10,
-		"J": 11,
-		"Q": 12,
-		"K": 13,
-		"A": 14,
+	cardValues = map[string]uint{
+		"A": 14, "K": 13, "Q": 12, "J": 11, "T": 10, "9": 9,
+		"8": 8, "7": 7, "6": 6, "5": 5, "4": 4, "3": 3, "2": 2,
 	}
 }
 
 type hand struct {
 	cards      string
 	bid        int
-	cardsValue int
+	cardsValue uint
 }
 
-func parseContent(content string) []hand {
+func parseContent(content string, part2 bool) []hand {
 	var hands []hand
 	lines := strings.Split(content, "\n")
 
@@ -73,61 +55,68 @@ func parseContent(content string) []hand {
 		hands = append(hands, hand{
 			cards:      parts[0],
 			bid:        mustInt(parts[1]),
-			cardsValue: calculateHandValue(parts[0]),
+			cardsValue: calculateHandValue(parts[0], part2),
 		})
 	}
 
 	return hands
 }
 
-func calculateHandValue(hand string) int {
-	cardCounts := countsOfCards(hand)
-	cardsVal := 0
-	pos := len(hand)
-	for j := 0; j < len(hand); j++ {
-		card := string(hand[j])
+func calculateHandValue(hand string, part2 bool) uint {
+	freqs, max, jacks := cardFreq(hand, part2)
 
-		cardVal := cardValues[card]
-		cardsVal += cardVal * cardCounts[card] * pos
-		pos--
+	freqsLen := uint(len(freqs))
+	if freqsLen == 0 {
+		freqsLen = 1
 	}
 
-	return cardsVal
+	return (((max+jacks)<<3)-freqsLen)<<20 |
+		cardValues[string(hand[0])]<<16 |
+		cardValues[string(hand[1])]<<12 |
+		cardValues[string(hand[2])]<<8 |
+		cardValues[string(hand[3])]<<4 |
+		cardValues[string(hand[4])]
 }
 
-func countsOfCards(hand string) map[string]int {
-	var result map[string]int = make(map[string]int, 14)
-	for c := range cardValues {
-		regexp1 := regexp.MustCompile(fmt.Sprintf("[%s]", c))
-		cardCount := len(regexp1.FindAllString(hand, -1))
+func cardFreq(hand string, sumJacks bool) (map[string]uint, uint, uint) {
+	cardFreqMap := make(map[string]uint, 13)
+	var max, jacks uint
 
-		var cardMulti int
-		switch cardCount {
-		case 2:
-			cardMulti = 4
-		case 3:
-			cardMulti = 16
-		case 4:
-			cardMulti = 64
-		case 5:
-			cardMulti = 128
-		default:
-			cardMulti = 1
+	for _, card := range hand {
+		cardStr := string(card)
+		if sumJacks && cardStr == "J" {
+			jacks++
+		} else {
+			cardFreqMap[cardStr]++
+			if cardFreqMap[cardStr] > max {
+				max = cardFreqMap[cardStr]
+			}
 		}
-		result[c] = cardCount * cardMulti
 	}
 
-	return result
+	return cardFreqMap, max, jacks
 }
 
 func calculateWinnings(games []hand) int {
-	var total int
+	total := 0
 
 	for i, game := range games {
 		total += game.bid * (i + 1)
 	}
 
 	return total
+}
+
+func cardSort(a, b hand) int {
+	if a.cardsValue == b.cardsValue {
+		return 0
+	}
+
+	if a.cardsValue > b.cardsValue {
+		return 1
+	}
+
+	return -1
 }
 
 // ================================================
